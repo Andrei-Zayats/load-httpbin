@@ -1,0 +1,73 @@
+version: '3'
+
+services:
+  httpbin:
+    image: kennethreitz/httpbin
+    container_name: WebService
+    networks:
+      jmeter-network:
+        ipv4_address: ${WEB_APPLICATION_IP}
+
+  influxdb:
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
+      - DOCKER_INFLUXDB_INIT_RETENTION=1w
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
+    image: influxdb:latest
+    container_name: InfluxDB
+    # ports:
+    #   - "8086:8086"
+    # volumes:
+    #   - ./influxdb/data:/var/lib/influxdb2
+    #   - ./influxdb/config:/etc/influxdb2
+    networks:
+      jmeter-network:
+        ipv4_address: ${INFLUXDB_IP}
+  
+  grafana:
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    image: grafana/grafana-oss
+    container_name: Grafana
+    volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./grafana/data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - influxdb
+    ports:
+      - "4000:3000"
+    networks:
+      jmeter-network:
+        ipv4_address: ${GRAFANA_IP}
+  
+  jmeter:
+    environment:
+      - WEB_APPLICATION_IP=${WEB_APPLICATION_IP}
+      - NUMBER_OF_THREADS=${NUMBER_OF_THREADS}
+      - DURATION_OF_TEST=${DURATION_OF_TEST}
+      - WARM_UP=${WARM_UP}
+    build:
+      context: jmeter
+    depends_on:
+      - httpbin
+      - influxdb
+    volumes:
+      - ./jmeter/report:/jmeter/report
+    container_name: Jmeter
+    networks:
+      jmeter-network:
+        ipv4_address: ${JMETER_IP}
+
+networks:
+  jmeter-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${SUBNET}
+          gateway: ${GATEWAY_IP}
